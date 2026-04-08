@@ -34,6 +34,7 @@ jobs:
 
       - name: Pull latest image from Docker Hub
         run: docker pull ${{ secrets.DOCKERHUB_USERNAME }}/waste-classifier-api:latest
+        shell: bash
 
       - name: Stop and remove existing container (if exists)
         run: |
@@ -44,3 +45,4 @@ jobs:
 
       - name: Run new container
         run: docker run -d --name waste-sorter-app -p 8000:8000 ${{ secrets.DOCKERHUB_USERNAME }}/waste-classifier-api:latest
+        shell: bash
