@@ -54,6 +54,13 @@ async def classify_image(file: UploadFile = File(...)):
             detail=f"이미지 모델 분석 중 오류 발생: {str(e)}"
         )
 
+@app.get("/healthz")
+def health_check():
+    """
+    CI/CD 파이프라인의 헬스체크를 위한 엔드포인트입니다.
+    """
+    return {"status": "ok"}
+
 if __name__ == "__main__":
     import uvicorn
     # 로컬 개발 및 테스트 시 직접 python main.py 로 구동하기 위한 세팅
