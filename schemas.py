@@ -1,12 +1,20 @@
 from pydantic import BaseModel
+from typing import List, Dict, Any
 
-class WasteClassificationResult(BaseModel):
+class DetectedItem(BaseModel):
+    label: str
     category: str
     confidence: float
-    disposal_method: str
-    fine_info: str
+    guideline: str
+    box: List[float]  # [xmin, ymin, xmax, ymax]
 
-class WasteResponse(BaseModel):
+class ComplianceReport(BaseModel):
+    total_detected: int
+    epr_items: int
+
+class WasteResponseV2(BaseModel):
     status: str
     message: str
-    data: WasteClassificationResult
+    items: List[DetectedItem]
+    compliance_report: ComplianceReport
+    annotated_image_base64: str

@@ -1,7 +1,7 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
-from schemas import WasteResponse, WasteClassificationResult
-from model import classify_waste
+from schemas import WasteResponseV2
+from app.services.waste_predictor import predict_and_annotate
 
 app = FastAPI(
     title="지능형 분리수거 도우미 API 서버",
@@ -14,13 +14,12 @@ def read_root():
     # 이제 JSON 대신 사용자를 위한 예쁜 웹 인터페이스를 반환합니다.
     return FileResponse("templates/index.html")
 
-@app.post("/api/v1/classify", response_model=WasteResponse)
+@app.post("/api/v1/classify", response_model=WasteResponseV2)
 async def classify_image(file: UploadFile = File(...)):
     """
-    쓰레기 사진을 업로드하면, AI 모델을 통해 폐기물의 종류를 분석하고 
-    2026년 기준 분리배출 요령과 과태료 안내를 반환합니다.
+    쓰레기 사진을 업로드하면, AI 모델을 통해 폐기물의 종류를 다중 분석하고 
+    2026년 기준 분리배출 요령과 Bounding Box가 포함된 이미지를 반환합니다.
     """
-    # 기본 이미지 확장자 및 타입 체크
     valid_content_types = ["image/jpeg", "image/png", "image/jpg", "image/webp"]
     if file.content_type not in valid_content_types:
         raise HTTPException(
@@ -29,27 +28,23 @@ async def classify_image(file: UploadFile = File(...)):
         )
     
     try:
-        # 파일 바이너리 읽기
         contents = await file.read()
         
-        # 모델 추론 수행 (내부에서 PIL 변환 -> transformers 파이프라인 추론 -> 매핑 진행)
-        result = classify_waste(contents)
+        # V2 고도화 서비스 호출 (Object Detection + Visualization)
+        result = predict_and_annotate(contents)
         
-        return WasteResponse(
+        return WasteResponseV2(
             status="success",
-            message="이미지 분류 완료",
-            data=WasteClassificationResult(
-                category=result["category"],
-                confidence=result["confidence"],
-                disposal_method=result["disposal_method"],
-                fine_info=result["fine_info"]
-            )
+            message="객체 탐지 및 분석 완료",
+            items=result["items"],
+            compliance_report=result["compliance_report"],
+            annotated_image_base64=result["annotated_image_base64"]
         )
         
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"이미지 모델 분석 중 오류 발생: {str(e)}"
+            detail=f"AI 모델 분석 중 오류 발생: {str(e)}"
         )
 
 @app.get("/healthz")

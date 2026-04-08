@@ -10,9 +10,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 서버 가동 시마다 수백 MB의 모델을 다운로드하는 부하를 방지하기 위해 
-# Docker Build 단계에서 Hugging Face (CLIP) 모델을 미리 캐시(다운로드)합니다.
-RUN python -c "from transformers import pipeline; pipeline('zero-shot-image-classification', model='openai/clip-vit-base-patch32')"
+# Docker Build 단계에서 새로운 Object Detection 모델(OwlViT)을 미리 캐시(다운로드)합니다.
+RUN python -c "from transformers import pipeline; pipeline('zero-shot-object-detection', model='google/owlvit-base-patch32')"
 
 # 나머지 프로젝트 소스 코드 복사
 COPY . .

@@ -255,30 +255,27 @@
         </div>
 
         <section class="result-section" id="result-area">
-            <center><img id="preview-img" src="" alt="미리보기"></center>
-            <div class="result-card">
-                <div class="result-header">
-                    <span class="category-name" id="res-category">-</span>
-                    <span class="confidence-badge">신뢰도: <span id="res-confidence">0</span>%</span>
-                </div>
-                <div class="result-body">
-                    <div class="info-item">
-                        <span class="info-label">✅ 올바른 분리배출 방법</span>
-                        <p class="info-content" id="res-method">-</p>
-                    </div>
-                    <div class="fine-box">
-                        <span class="info-label">⚠️ 주의 및 과태료 정보</span>
-                        <p class="info-content" id="res-fine">-</p>
-                    </div>
-                    <button onclick="resetUI()" style="margin-top: 30px; width: 100%; padding: 15px; border-radius: 15px; border: none; background: #edf2f7; color: #4a5568; font-weight: 700; cursor: pointer; transition: 0.2s;">
-                        다시 검사하기
-                    </button>
-                </div>
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h3 style="margin-bottom: 15px; color: var(--primary);">AI 분석 결과 (2026 규정 적용)</h3>
+                <img id="preview-img" src="" alt="분석 이미지" style="border: 5px solid var(--primary-light); max-width: 100%; height: auto;">
             </div>
+
+            <div id="items-container">
+                <!-- 개별 아이템 카드들이 여기에 동적으로 추가됩니다 -->
+            </div>
+
+            <div class="fine-box" id="compliance-box" style="margin-top: 30px; background: #e6fffa; border-left: 4px solid #38b2ac;">
+                <span class="info-label" style="color: #2c7a7b;">📋 2026 규제 준수 보고서</span>
+                <p class="info-content" id="res-compliance">탐지된 객체: 0개 | EPR 대상 품목: 0개</p>
+            </div>
+
+            <button onclick="resetUI()" style="margin-top: 30px; width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-weight: 700; cursor: pointer; transition: 0.2s; box-shadow: var(--shadow);">
+                새로 검사하기
+            </button>
         </section>
 
         <footer>
-            <p>&copy; 2026 AI Waste Sorter Helper. All rights reserved.</p>
+            <p>&copy; 2026 AI Waste Sorter Helper V2.0 (MLOps Enabled). All rights reserved.</p>
         </footer>
     </div>
 
@@ -288,6 +285,7 @@
         const loader = document.getElementById('loader');
         const resultArea = document.getElementById('result-area');
         const previewImg = document.getElementById('preview-img');
+        const itemsContainer = document.getElementById('items-container');
 
         // Drag & Drop events
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -329,14 +327,6 @@
         }
 
         function uploadFile(file) {
-            // Preview
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onloadend = function() {
-                previewImg.src = reader.result;
-                previewImg.style.display = 'block';
-            }
-
             // UI Switch
             dropArea.style.display = 'none';
             resultArea.style.display = 'none';
@@ -352,7 +342,7 @@
             .then(response => response.json())
             .then(result => {
                 if (result.status === 'success') {
-                    showResult(result.data);
+                    showResult(result);
                 } else {
                     alert('분석에 실패했습니다: ' + result.message);
                     resetUI();
@@ -369,10 +359,36 @@
             loader.style.display = 'none';
             resultArea.style.display = 'block';
 
-            document.getElementById('res-category').innerText = data.category;
-            document.getElementById('res-confidence').innerText = (data.confidence * 100).toFixed(1);
-            document.getElementById('res-method').innerText = data.disposal_method;
-            document.getElementById('res-fine').innerText = data.fine_info;
+            // 이미지 업데이트 (Annotated Base64)
+            previewImg.src = 'data:image/jpeg;base64,' + data.annotated_image_base64;
+            previewImg.style.display = 'block';
+
+            // 규제 보고서 업데이트
+            document.getElementById('res-compliance').innerText = 
+                `탐지된 객체: ${data.compliance_report.total_detected}개 | EPR 대상 품목: ${data.compliance_report.epr_items}개`;
+
+            // 아이템 리스트 초기화 및 추가
+            itemsContainer.innerHTML = '';
+            data.items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.style.marginBottom = '20px';
+                card.style.borderTop = `6px solid #4a5568`; // 기본 색상
+
+                card.innerHTML = `
+                    <div class="result-header" style="padding: 15px; background: #f7fafc; color: #2d3748; border-bottom: 1px solid #e2e8f0;">
+                        <span style="font-weight: 800; font-size: 1.2rem;">${item.label}</span>
+                        <span class="confidence-badge" style="color: #4a5568; background: #edf2f7;">신뢰도: ${(item.confidence * 100).toFixed(1)}%</span>
+                    </div>
+                    <div class="result-body" style="padding: 20px;">
+                        <div class="info-item" style="margin-bottom: 0;">
+                            <span class="info-label" style="font-size: 0.75rem;">📋 2026 배출 지침</span>
+                            <p class="info-content" style="font-size: 0.95rem;">${item.guideline}</p>
+                        </div>
+                    </div>
+                `;
+                itemsContainer.appendChild(card);
+            });
         }
 
         function resetUI() {
@@ -381,6 +397,7 @@
             loader.style.display = 'none';
             previewImg.style.display = 'none';
             fileInput.value = '';
+            itemsContainer.innerHTML = '';
         }
     </script>
 </body>
