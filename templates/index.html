@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 분리수거 도우미 - 2026 기준</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Noto+Sans+KR:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2d5a27;
+            --primary-light: #4f8a4c;
+            --secondary: #f9d949;
+            --bg: #f5f7f5;
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --text: #1a1c1a;
+            --text-muted: #666;
+            --shadow: 0 10px 30px rgba(0,0,0,0.08);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(45, 90, 39, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(249, 217, 73, 0.05) 0px, transparent 50%);
+            min-height: 100 vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+
+        h1 {
+            font-weight: 800;
+            font-size: 2.5rem;
+            color: var(--primary);
+            letter-spacing: -1px;
+            margin-bottom: 15px;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            background: var(--card-bg);
+            border-radius: 30px;
+            padding: 40px;
+            box-shadow: var(--shadow);
+            border: 2px dashed #cbd5e0;
+            text-align: center;
+            transition: var(--transition);
+            cursor: pointer;
+            position: relative;
+            backdrop-filter: blur(10px);
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+
+        .upload-section:hover, .upload-section.dragover {
+            border-color: var(--primary-light);
+            background: white;
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.12);
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            color: var(--primary-light);
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .upload-section h2 {
+            font-size: 1.4rem;
+            margin-bottom: 10px;
+            color: var(--primary);
+        }
+
+        .upload-section p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        /* Result Section */
+        .result-section {
+            margin-top: 40px;
+            display: none;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 30px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            border-top: 6px solid var(--primary);
+        }
+
+        .result-header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            padding: 30px;
+            color: white;
+            text-align: center;
+        }
+
+        .category-name {
+            font-size: 2rem;
+            font-weight: 800;
+            display: block;
+        }
+
+        .confidence-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin-top: 10px;
+            font-weight: 600;
+        }
+
+        .result-body {
+            padding: 40px;
+        }
+
+        .info-item {
+            margin-bottom: 30px;
+        }
+
+        .info-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-label {
+            font-size: 0.85rem;
+            color: var(--primary-light);
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 1px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .info-content {
+            font-size: 1.1rem;
+            color: var(--text);
+            font-weight: 400;
+        }
+
+        .fine-box {
+            background: #fff8e1;
+            padding: 20px;
+            border-radius: 20px;
+            border-left: 4px solid var(--secondary);
+            margin-top: 20px;
+        }
+
+        .fine-box .info-label {
+            color: #b7791f;
+        }
+
+        /* Loader */
+        .loader {
+            display: none;
+            margin: 40px auto;
+            text-align: center;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #e2e8f0;
+            border-top: 5px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Preview Image */
+        #preview-img {
+            max-width: 100%;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            display: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 60px;
+            padding-bottom: 40px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="logo">🌿</span>
+            <h1>AI 분리수거 도우미</h1>
+            <p>2026년 대한민국 분리배출 기준을 따르는 스마트한 자원 순환 가이드</p>
+        </header>
+
+        <section class="upload-section" id="drop-area">
+            <span class="upload-icon">📸</span>
+            <h2>쓰레기 사진을 업로드하세요</h2>
+            <p>클릭하거나 이미지를 여기로 끌어다 놓으세요</p>
+            <input type="file" id="file-input" accept="image/*">
+        </section>
+
+        <div class="loader" id="loader">
+            <div class="spinner"></div>
+            <p style="margin-top: 15px; font-weight: 600; color: var(--primary);">AI가 이미지를 분석 중입니다...</p>
+        </div>
+
+        <section class="result-section" id="result-area">
+            <center><img id="preview-img" src="" alt="미리보기"></center>
+            <div class="result-card">
+                <div class="result-header">
+                    <span class="category-name" id="res-category">-</span>
+                    <span class="confidence-badge">신뢰도: <span id="res-confidence">0</span>%</span>
+                </div>
+                <div class="result-body">
+                    <div class="info-item">
+                        <span class="info-label">✅ 올바른 분리배출 방법</span>
+                        <p class="info-content" id="res-method">-</p>
+                    </div>
+                    <div class="fine-box">
+                        <span class="info-label">⚠️ 주의 및 과태료 정보</span>
+                        <p class="info-content" id="res-fine">-</p>
+                    </div>
+                    <button onclick="resetUI()" style="margin-top: 30px; width: 100%; padding: 15px; border-radius: 15px; border: none; background: #edf2f7; color: #4a5568; font-weight: 700; cursor: pointer; transition: 0.2s;">
+                        다시 검사하기
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>&copy; 2026 AI Waste Sorter Helper. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script>
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+        const loader = document.getElementById('loader');
+        const resultArea = document.getElementById('result-area');
+        const previewImg = document.getElementById('preview-img');
+
+        // Drag & Drop events
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
+        });
+
+        dropArea.addEventListener('drop', handleDrop, false);
+        dropArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('image/')) {
+                    uploadFile(file);
+                } else {
+                    alert('이미지 파일만 업로드 가능합니다!');
+                }
+            }
+        }
+
+        function uploadFile(file) {
+            // Preview
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onloadend = function() {
+                previewImg.src = reader.result;
+                previewImg.style.display = 'block';
+            }
+
+            // UI Switch
+            dropArea.style.display = 'none';
+            resultArea.style.display = 'none';
+            loader.style.display = 'block';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/api/v1/classify', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.status === 'success') {
+                    showResult(result.data);
+                } else {
+                    alert('분석에 실패했습니다: ' + result.message);
+                    resetUI();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('서버 통신 중 오류가 발생했습니다.');
+                resetUI();
+            });
+        }
+
+        function showResult(data) {
+            loader.style.display = 'none';
+            resultArea.style.display = 'block';
+
+            document.getElementById('res-category').innerText = data.category;
+            document.getElementById('res-confidence').innerText = (data.confidence * 100).toFixed(1);
+            document.getElementById('res-method').innerText = data.disposal_method;
+            document.getElementById('res-fine').innerText = data.fine_info;
+        }
+
+        function resetUI() {
+            resultArea.style.display = 'none';
+            dropArea.style.display = 'block';
+            loader.style.display = 'none';
+            previewImg.style.display = 'none';
+            fileInput.value = '';
+        }
+    </script>
+</body>
+</html>

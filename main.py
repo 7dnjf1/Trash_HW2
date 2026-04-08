@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from schemas import WasteResponse, WasteClassificationResult
 from model import classify_waste
 
@@ -11,10 +11,8 @@ app = FastAPI(
 
 @app.get("/")
 def read_root():
-    return {
-        "message": "Welcome to AI Waste Classification API Server.",
-        "docs_url": "/docs"
-    }
+    # 이제 JSON 대신 사용자를 위한 예쁜 웹 인터페이스를 반환합니다.
+    return FileResponse("templates/index.html")
 
 @app.post("/api/v1/classify", response_model=WasteResponse)
 async def classify_image(file: UploadFile = File(...)):
