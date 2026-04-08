@@ -10,8 +10,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Docker Build 단계에서 새로운 Object Detection 모델(OwlViT)을 미리 캐시(다운로드)합니다.
-RUN python -c "from transformers import pipeline; pipeline('zero-shot-object-detection', model='google/owlvit-base-patch32')"
+# 검증된 CLIP 분류 모델을 빌드 단계에서 미리 캐시(다운로드)합니다.
+RUN python -c "from transformers import pipeline; pipeline('zero-shot-image-classification', model='openai/clip-vit-base-patch32')"
 
 # 나머지 프로젝트 소스 코드 복사
 COPY . .

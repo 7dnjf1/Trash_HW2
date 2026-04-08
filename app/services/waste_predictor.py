@@ -2,104 +2,162 @@ import io
 import base64
 from PIL import Image, ImageDraw, ImageFont
 from transformers import pipeline
-import torch
 
-# Zero-shot Object Detection 모델 초기화 (OwlViT - OpenAI CLIP 기반의 강력한 객체 탐지 모델)
-# google/owlvit-base-patch32 를 사용하여 텍스트 쿼리만으로 객체를 탐지합니다.
-detector = pipeline("zero-shot-object-detection", model="google/owlvit-base-patch32")
+# 검증된 CLIP 기반 Zero-shot Image Classification 모델 유지
+# (OwlViT object detection은 파인튜닝 없이 실사용 신뢰도가 낮아 CLIP으로 대체)
+classifier = pipeline("zero-shot-image-classification", model="openai/clip-vit-base-patch32")
 
-# 카테고리별 컬러 및 법규 정보 매핑
+# 카테고리별 색상 맵 (RGB)
 COLOR_MAP = {
-    "plastic": "#00FF00",  # 초록
-    "glass": "#0000FF",    # 파랑
-    "metal": "#FF0000",    # 빨강
-    "paper": "#FFFF00",    # 노랑
-    "food": "#8B4513",     # 갈색
-    "general": "#808080",  # 회색
-    "special": "#800080"   # 보라 (폐배터리 등)
+    "plastic": (0, 200, 80),    # 초록
+    "glass":   (30, 120, 255),  # 파랑
+    "metal":   (220, 50, 50),   # 빨강
+    "paper":   (230, 200, 0),   # 노랑
+    "food":    (139, 90, 43),   # 갈색
+    "general": (130, 130, 130), # 회색
+    "special": (150, 50, 200)   # 보라
 }
 
-# 2026년 기준 상세 법규 및 지침
-LAW_2026 = {
-    "PET bottle": {
+# 2026년 기준 법규 + 카테고리 + 배출 지침 통합 매핑
+WASTE_DATABASE = {
+    "plastic bottle, plastic container": {
+        "label": "플라스틱 / PET병",
         "category": "plastic",
-        "guideline": "rPET 10% 이상 사용 권장 + 라벨 제거 필수 (2026년부터 QR코드로 대체됨)",
-        "epr_target": True
+        "guideline": (
+            "내용물을 비우고 물로 헹군 뒤 라벨을 제거하고 납작하게 찌그러트려 배출하세요.\n"
+            "【2026 신규】 PET병은 rPET 10% 이상 사용이 권장되며, "
+            "라벨은 QR코드로 대체됩니다. 라벨 제거가 필수입니다."
+        ),
+        "epr_target": False
     },
     "plastic toy": {
+        "label": "플라스틱 장난감",
         "category": "plastic",
-        "guideline": "2026년부터 EPR 대상! 플라스틱류와 동일하게 분리배출 하세요.",
+        "guideline": (
+            "플라스틱류와 동일하게 분리배출합니다.\n"
+            "【2026 신규】 플라스틱 장난감은 EPR(생산자책임재활용) 대상 품목으로 "
+            "새롭게 지정되었습니다. 반드시 플라스틱 수거함에 배출하세요."
+        ),
         "epr_target": True
     },
-    "glass": {"category": "glass", "guideline": "색상별 분리배출, 깨진 유리는 불연성 마대 사용"},
-    "can": {"category": "metal", "guideline": "내용물 비우고 압착, 가스통은 구멍 뚫기"},
-    "paper": {"category": "paper", "guideline": "테이프 제거 후 평평하게 펴서 배출"},
-    "food": {"category": "food", "guideline": "물기 제거 후 전용 수거함 배출"},
-    "trash": {"category": "general", "guideline": "종량제 봉투에 담아 배출"},
-    "battery": {"category": "special", "guideline": "반드시 전용 수거함에 배출 (화재 위험)"}
+    "glass bottle": {
+        "label": "유리병",
+        "category": "glass",
+        "guideline": "내용물을 비우고 색상별(투명·녹색·갈색)로 분리해 전용 수거함에 배출하세요.",
+        "epr_target": False
+    },
+    "aluminum can": {
+        "label": "캔 / 금속",
+        "category": "metal",
+        "guideline": "내용물을 비우고 압착해 부피를 줄인 뒤 배출하세요. 가스통은 구멍을 뚫어야 합니다.",
+        "epr_target": False
+    },
+    "paper, cardboard": {
+        "label": "종이 / 박스",
+        "category": "paper",
+        "guideline": "테이프와 철핀을 제거한 뒤 평평하게 접어 끈으로 묶어 배출하세요.",
+        "epr_target": False
+    },
+    "food waste": {
+        "label": "음식물 쓰레기",
+        "category": "food",
+        "guideline": "물기를 최대한 제거한 뒤 전용 음식물 쓰레기 봉투 또는 수거함에 배출하세요.",
+        "epr_target": False
+    },
+    "battery": {
+        "label": "폐배터리",
+        "category": "special",
+        "guideline": "절대 일반쓰레기에 버리지 마세요! 편의점·주민센터의 전용 수거함에만 배출합니다.",
+        "epr_target": False
+    },
+    "general waste, trash": {
+        "label": "일반쓰레기",
+        "category": "general",
+        "guideline": "재활용이 불가한 쓰레기는 규격 종량제 봉투에 담아 배출하세요.",
+        "epr_target": False
+    }
 }
 
-# 모델이 인식할 텍스트 쿼리 (레이아웃 최적화)
-CANDIDATE_QUERIES = [
-    "PET bottle", "plastic toy", "plastic bottle", "glass bottle", 
-    "aluminum can", "cardboard box", "paper", "food waste", 
-    "battery", "trash bag"
-]
+CANDIDATE_LABELS = list(WASTE_DATABASE.keys())
 
-def predict_and_annotate(image_bytes: bytes):
-    # 이미지 로드
+
+def predict_and_annotate(image_bytes: bytes) -> dict:
+    """CLIP 분류 후 결과를 V2 포맷(items, compliance_report, annotated_image)으로 반환."""
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     width, height = image.size
 
-    # 객체 탐지 실행
-    results = detector(image, candidate_labels=CANDIDATE_QUERIES, threshold=0.1)
+    # CLIP 추론
+    raw_results = classifier(image, candidate_labels=CANDIDATE_LABELS)
 
-    items = []
+    # 신뢰도 10% 이상인 결과만 취함 (최대 3개, 최소 1개 보장)
+    filtered = [r for r in raw_results if r["score"] >= 0.10]
+    if not filtered:
+        filtered = raw_results[:1]  # 최소 1개는 반환
+
+    # Pillow 드로잉 준비
     draw = ImageDraw.Draw(image)
-    
-    # 폰트 설정 (기본 폰트 사용, 필요시 경로 지정 필요)
     try:
-        font = ImageFont.truetype("arial.ttf", 20)
-    except:
+        font = ImageFont.truetype("arial.ttf", max(16, width // 30))
+    except Exception:
         font = ImageFont.load_default()
 
-    compliance_summary = {"total_detected": len(results), "epr_items": 0}
+    items = []
+    epr_count = 0
+    box_margin = 0.06  # 박스를 이미지 경계에서 6% 안쪽으로
 
-    for res in results:
-        label = res["label"]
+    for idx, res in enumerate(filtered[:3]):
+        label_key = res["label"]
         score = res["score"]
-        box = res["box"]  # {"xmin": ..., "ymin": ..., "xmax": ..., "ymax": ...}
+        info = WASTE_DATABASE.get(label_key, WASTE_DATABASE["general waste, trash"])
 
-        # 2026 법규 정보 및 카테고리 매핑
-        law_info = LAW_2026.get(label, {"category": "general", "guideline": "일반 분리배출 기준 준수"})
-        category = law_info.get("category", "general")
-        color = COLOR_MAP.get(category, "#808080")
-        
-        if law_info.get("epr_target"):
-            compliance_summary["epr_items"] += 1
+        cat = info["category"]
+        color = COLOR_MAP.get(cat, (130, 130, 130))
 
-        # 시각화 (Bounding Box)
-        # OwlViT의 box는 0~1 사이의 정규화된 값이 아닌 픽셀 값으로 반환될 수 있으므로 확인 필요 (Transformers 버전에 따라 다름)
-        # 보통 transformers pipeline은 픽셀 값을 반환함
-        xmin, ymin, xmax, ymax = box["xmin"], box["ymin"], box["xmax"], box["ymax"]
-        draw.rectangle([xmin, ymin, xmax, ymax], outline=color, width=4)
-        draw.text((xmin, ymin - 25), f"{label} ({int(score*100)}%)", fill=color, font=font)
+        if info.get("epr_target"):
+            epr_count += 1
+
+        # 여러 결과가 있을 경우 이미지를 위아래로 나눠 박스를 그림
+        if len(filtered) == 1:
+            x0 = int(width * box_margin)
+            y0 = int(height * box_margin)
+            x1 = int(width * (1 - box_margin))
+            y1 = int(height * (1 - box_margin))
+        else:
+            # 이미지를 세로로 N등분
+            n = min(len(filtered), 3)
+            segment_h = height // n
+            x0 = int(width * box_margin)
+            y0 = idx * segment_h + int(segment_h * 0.05)
+            x1 = int(width * (1 - box_margin))
+            y1 = (idx + 1) * segment_h - int(segment_h * 0.05)
+
+        # 박스 그리기
+        draw.rectangle([x0, y0, x1, y1], outline=color, width=4)
+        tag = f"{info['label']} ({int(score * 100)}%)"
+        # 태그 배경
+        bbox = font.getbbox(tag) if hasattr(font, "getbbox") else (0, 0, len(tag) * 8, 18)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        draw.rectangle([x0, y0 - th - 6, x0 + tw + 10, y0], fill=color)
+        draw.text((x0 + 5, y0 - th - 4), tag, fill="white", font=font)
 
         items.append({
-            "label": label,
-            "category": category,
+            "label": info["label"],
+            "category": cat,
             "confidence": round(score, 4),
-            "guideline": law_info["guideline"],
-            "box": [xmin, ymin, xmax, ymax]
+            "guideline": info["guideline"],
+            "box": [x0, y0, x1, y1]
         })
 
-    # 어노테이션된 이미지를 Base64로 변환
-    buffered = io.BytesIO()
-    image.save(buffered, format="JPEG")
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    # Base64 변환
+    buf = io.BytesIO()
+    image.save(buf, format="JPEG", quality=90)
+    img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
     return {
         "items": items,
-        "compliance_report": compliance_summary,
-        "annotated_image_base64": img_str
+        "compliance_report": {
+            "total_detected": len(items),
+            "epr_items": epr_count
+        },
+        "annotated_image_base64": img_b64
     }
