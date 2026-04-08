@@ -49,6 +49,26 @@ jobs:
 
       - name: Health check container
         run: |
-          echo "Waiting for container to be ready..."
-          timeout 30 bash -c "while ! curl -s http://localhost:8000/healthz; do sleep 2; done"
-        shell: bash
+          Write-Host "Waiting for container to be ready..."
+          $maxRetries = 15
+          $retryCount = 0
+          $success = $false
+          while ($retryCount -lt $maxRetries) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://localhost:8000/healthz" -UseBasicParsing -TimeoutSec 5
+              if ($response.StatusCode -eq 200) {
+                Write-Host "Health check passed!"
+                $success = $true
+                break
+              }
+            } catch {
+              Write-Host "Waiting... ($($retryCount + 1)/$maxRetries)"
+            }
+            $retryCount++
+            Start-Sleep -Seconds 2
+          }
+          if (-not $success) {
+            Write-Host "Health check failed after $maxRetries attempts."
+            exit 1
+          }
+        shell: pwsh
