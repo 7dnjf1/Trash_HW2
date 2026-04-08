@@ -71,4 +71,4 @@ jobs:
             Write-Host "Health check failed after $maxRetries attempts."
             exit 1
           }
-        shell: pwsh
+        shell: powershell
