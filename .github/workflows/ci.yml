@@ -45,12 +45,14 @@ jobs:
 
       - name: Cleanup Port 8000 (Force)
         run: |
+          echo Cleaning up port 8000...
           for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000') do (
             if not "%%a"=="0" (
               echo Killing process %%a
               taskkill /F /PID %%a
             )
           )
+          ping 127.0.0.1 -n 3 >nul
         shell: cmd
         continue-on-error: true
 
@@ -60,18 +62,26 @@ jobs:
 
       - name: Health check container
         run: |
-          echo Waiting for AI model and server to be ready (Max 2 minutes)...
+          echo Waiting for AI model to load (Initial 10s)...
+          ping 127.0.0.1 -n 11 >nul
+          echo Starting health check loop (Max 2 minutes)...
           for /L %%i in (1,1,30) do (
+            echo Attempt %%i/30 - Checking http://127.0.0.1:8000/healthz
             curl.exe -s http://127.0.0.1:8000/healthz | findstr "ok" >nul
             if not errorlevel 1 (
-              echo Health check passed! Server is healthy.
+              echo [SUCCESS] Health check passed! Server is healthy.
               exit /b 0
             )
-            echo Attempt %%i/30 - Waiting...
-            timeout /t 4 /nobreak >nul
+            echo [WAITING] Server not ready yet. Sleeping 4 seconds...
+            ping 127.0.0.1 -n 5 >nul
           )
-          echo !!! Health check failed after 30 attempts !!!
-          echo Showing last 50 lines of container logs for diagnosis:
-          docker logs --tail 50 waste-sorter-app
+          echo [FAILURE] !!! Health check failed after 30 attempts !!!
+          echo ---------------- DIAGNOSTICS ----------------
+          echo Current Docker Containers:
+          docker ps
+          echo.
+          echo Container Logs:
+          docker logs waste-sorter-app
+          echo ---------------------------------------------
           exit /b 1
         shell: cmd
