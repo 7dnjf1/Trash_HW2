@@ -45,20 +45,13 @@ jobs:
 
       - name: Cleanup Port 8000 (Force)
         run: |
-          $port = 8000
-          $connections = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
-          if ($connections) {
-            Write-Host "Found active connections on port $port. Terminating processes..."
-            foreach ($c in $connections) {
-              $pid = $c.OwningProcess
-              if ($pid -gt 0) {
-                Write-Host "Killing process $pid"
-                Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
-              }
-            }
-            Start-Sleep -Seconds 2
-          }
-        shell: powershell
+          for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000') do (
+            if not "%%a"=="0" (
+              echo Killing process %%a
+              taskkill /F /PID %%a
+            )
+          )
+        shell: cmd
         continue-on-error: true
 
       - name: Run new container
@@ -67,29 +60,18 @@ jobs:
 
       - name: Health check container
         run: |
-          Write-Host "Waiting for AI model and server to be ready (Max 2 minutes)..."
-          $maxRetries = 30
-          $retryCount = 0
-          $success = $false
-          while ($retryCount -lt $maxRetries) {
-            try {
-              $response = Invoke-WebRequest -Uri "http://127.0.0.1:8000/healthz" -UseBasicParsing -TimeoutSec 5
-              if ($response.StatusCode -eq 200) {
-                Write-Host "Health check passed! Server is healthy."
-                $success = $true
-                break
-              }
-            } catch {
-              $msg = $_.Exception.Message
-              Write-Host "Attempt $($retryCount + 1)/$maxRetries - Waiting... ($msg)"
-            }
-            $retryCount++
-            Start-Sleep -Seconds 4
-          }
-          if (-not $success) {
-            Write-Host "!!! Health check failed after $maxRetries attempts !!!"
-            Write-Host "Showing last 50 lines of container logs for diagnosis:"
-            docker logs --tail 50 waste-sorter-app
-            exit 1
-          }
-        shell: powershell
+          echo Waiting for AI model and server to be ready (Max 2 minutes)...
+          for /L %%i in (1,1,30) do (
+            curl.exe -s http://127.0.0.1:8000/healthz | findstr "ok" >nul
+            if not errorlevel 1 (
+              echo Health check passed! Server is healthy.
+              exit /b 0
+            )
+            echo Attempt %%i/30 - Waiting...
+            timeout /t 4 /nobreak >nul
+          )
+          echo !!! Health check failed after 30 attempts !!!
+          echo Showing last 50 lines of container logs for diagnosis:
+          docker logs --tail 50 waste-sorter-app
+          exit /b 1
+        shell: cmd
