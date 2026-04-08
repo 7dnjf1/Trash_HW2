@@ -46,3 +46,9 @@ jobs:
       - name: Run new container
         run: docker run -d --name waste-sorter-app -p 8000:8000 ${{ secrets.DOCKERHUB_USERNAME }}/waste-classifier-api:latest
         shell: cmd
+
+      - name: Health check container
+        run: |
+          echo "Waiting for container to be ready..."
+          timeout 30 bash -c "while ! curl -s http://localhost:8000/healthz; do sleep 2; done"
+        shell: bash

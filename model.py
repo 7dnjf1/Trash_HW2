@@ -1,7 +1,8 @@
 import io
 from PIL import Image
 from transformers import pipeline
-
+from fastapi import FastAPI, File, UploadFile
+app = FastAPI(title="Waste Classification API", description="이미지 업로드 시 폐기물 분류를 반환합니다.", version="1.0.0")
 # Zero-shot Image Classification 파이프라인 초기화 (CLIP 기반)
 # openai/clip-vit-base-patch32는 가볍고 빠르게 일반 사물 분류가 가능합니다.
 classifier = pipeline("zero-shot-image-classification", model="openai/clip-vit-base-patch32")
@@ -77,3 +78,10 @@ def classify_waste(image_bytes: bytes):
         "disposal_method": mapping_info["disposal_method"],
         "fine_info": mapping_info["fine_info"]
     }
+
+
+@app.post("/classify", summary="폐기물 분류", description="이미지 파일을 업로드하면 분류 결과를 반환합니다.")
+async def classify_endpoint(file: UploadFile = File(...)):
+    content = await file.read()
+    result = classify_waste(content)
+    return result
